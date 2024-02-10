@@ -13,6 +13,25 @@ npm install equihash-node-binding
 
 This command will compile the Rust library and create the necessary bindings for use in Node.js.
 
+To install rust, you can use the following command:
+
+```bash
+curl https://sh.rustup.rs -sSf | sh
+
+rustup default nightly  
+rustup update nightly   
+rustc --version 
+```
+
+To install Node.js, you can use the following command:
+
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+nvm install 20.1
+nvm use 20.1
+nvm alias default 20.1
+```
+
 ## Usage
 
 To verify an Equihash solution in your Node.js application, follow the example below:
