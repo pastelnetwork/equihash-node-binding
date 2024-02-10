@@ -1,5 +1,7 @@
+#[cfg(test)]
 use crate::verify::Params;
 
+#[cfg(test)]
 pub(crate) struct TestVector {
     pub(crate) params: Params,
     pub(crate) input: &'static [u8],
@@ -7,6 +9,7 @@ pub(crate) struct TestVector {
     pub(crate) solutions: &'static [&'static [u32]],
 }
 
+#[cfg(test)]
 pub(crate) const VALID_TEST_VECTORS: &[TestVector] = &[
     TestVector {
         params: Params { n: 96, k: 5 },

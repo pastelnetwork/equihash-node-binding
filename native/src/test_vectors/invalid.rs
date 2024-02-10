@@ -1,5 +1,7 @@
+#[cfg(test)]
 use crate::verify::{Kind, Params};
 
+#[cfg(test)]
 pub(crate) struct TestVector {
     pub(crate) params: Params,
     pub(crate) input: &'static [u8],
@@ -8,6 +10,7 @@ pub(crate) struct TestVector {
     pub(crate) error: Kind,
 }
 
+#[cfg(test)]
 pub(crate) const INVALID_TEST_VECTORS: &[TestVector] = &[
     // Original valid solution: [
     //     2261, 15185, 36112, 104243, 23779, 118390, 118332, 130041, 32642, 69878, 76925, 80080,

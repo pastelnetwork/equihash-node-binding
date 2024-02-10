@@ -1,3 +1,4 @@
+#[cfg(test)]
 mod invalid;
 mod valid;
 

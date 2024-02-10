@@ -1,10 +1,9 @@
 const { is_valid_solution } = require('./native');
 
-// Given TestVector details
 const testVector = {
     params: { n: 200, k: 9 },
     input: Buffer.from("block header"),
-    nonce: Buffer.from(new Array(32).fill(0)), // 32-byte array filled with 0s
+    nonce: Buffer.alloc(32, 0), // 32-byte buffer filled with 0s
     solutions: [
 
         4313, 223176, 448870, 1692641, 214911, 551567, 1696002, 1768726, 500589, 938660,
@@ -62,15 +61,16 @@ const testVector = {
     ]
 };
 
-// Call the is_valid_solution function with parameters and solution from the test vector
-is_valid_solution(
+// Prepare the solutions as a Buffer in the correct format
+const solutionsBuffer = Buffer.from(new Uint32Array(testVector.solutions).buffer);
+
+// Call the Rust function
+const isValid = is_valid_solution(
     testVector.params.n,
     testVector.params.k,
     testVector.input,
     testVector.nonce,
-    Buffer.from(new Uint32Array(testVector.solutions)) // Convert solution numbers array to a Buffer
-).then(isValid => {
-    console.log('Solution valid:', isValid);
-}).catch(err => {
-    console.error('Error:', err);
-});
+    solutionsBuffer
+);
+
+console.log('Solution valid:', isValid);
