@@ -1,0 +1,15 @@
+{
+  "name": "equihash-node-binding",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "neon-cli": "^0.10.1"
+  }
+}
