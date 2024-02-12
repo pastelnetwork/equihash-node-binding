@@ -5,7 +5,7 @@ use std::io::Cursor;
 use std::mem::size_of;
 
 #[derive(Clone, Copy)]
-pub(crate) struct Params {
+pub struct Params {
     pub(crate) n: u32,
     pub(crate) k: u32,
 }
@@ -17,7 +17,7 @@ struct Node {
 }
 
 impl Params {
-    fn new(n: u32, k: u32) -> Result<Self, Error> {
+    pub fn new(n: u32, k: u32) -> Result<Self, Error> {
         // We place the following requirements on the parameters:
         // - n is a multiple of 8, so the hash output has an exact byte length.
         // - k >= 3 so the encoded solutions have an exact byte length.
@@ -209,7 +209,7 @@ fn expand_array(vin: &[u8], bit_len: usize, byte_pad: usize) -> Vec<u8> {
     vout
 }
 
-fn indices_from_minimal(p: Params, minimal: &[u8]) -> Result<Vec<u32>, Error> {
+pub fn indices_from_minimal(p: Params, minimal: &[u8]) -> Result<Vec<u32>, Error> {
     let c_bit_len = p.collision_bit_length();
     // Division is exact because k >= 3.
     if minimal.len() != ((1 << p.k) * (c_bit_len + 1)) / 8 {

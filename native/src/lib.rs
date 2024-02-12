@@ -1,45 +1,36 @@
 use neon::prelude::*;
 use neon::types::buffer::TypedArray;
-use std::fs::File;
-use std::io::Write;
-
+use verify::is_valid_solution;
 mod verify;
 mod test_vectors;
 
 fn is_valid_solution_wrapper(mut cx: FunctionContext) -> JsResult<JsBoolean> {
-    // Specify an absolute path for the debug file
-    let mut file = File::create("/home/ubuntu/equihash-node-binding/debug_output.txt").expect("Unable to create debug file");
-
+    // Extract arguments from JavaScript
     let n = cx.argument::<JsNumber>(0)?.value(&mut cx) as u32;
     let k = cx.argument::<JsNumber>(1)?.value(&mut cx) as u32;
 
-    writeln!(file, "n: {}, k: {}", n, k).expect("Unable to write to debug file");
+    // Bind the JsBuffer arguments to variables to extend their lifetimes
+    let input_buffer = cx.argument::<JsBuffer>(2)?;
+    let nonce_buffer = cx.argument::<JsBuffer>(3)?;
+    let soln_buffer = cx.argument::<JsBuffer>(4)?;
 
-    let input_handle = cx.argument::<JsBuffer>(2)?;
-    let nonce_handle = cx.argument::<JsBuffer>(3)?;
-    let soln_handle = cx.argument::<JsBuffer>(4)?;
+    // Convert JsBuffer to &[u8] slices
+    let input = input_buffer.as_slice(&cx);
+    let nonce = nonce_buffer.as_slice(&cx);
+    let soln_bytes = soln_buffer.as_slice(&cx);
 
-    let input = input_handle.as_slice(&cx);
-    let nonce = nonce_handle.as_slice(&cx);
-    let soln = soln_handle.as_slice(&cx);
 
-    writeln!(file, "input len: {}, nonce len: {}, soln len: {}", input.len(), nonce.len(), soln.len()).expect("Unable to write to debug file");
+    // Directly call the Rust is_valid_solution function with the solution bytes
+    let result = is_valid_solution(n, k, input, nonce, soln_bytes);
 
-    let result = verify::is_valid_solution(n, k, &input.to_vec(), &nonce.to_vec(), soln);
-
-    match &result {
-        Ok(_) => writeln!(file, "Result: Ok").expect("Unable to write to debug file"),
-        Err(e) => writeln!(file, "Result: Err({:?})", e).expect("Unable to write to debug file"),
-    }
-
+    // Map the result to a JavaScript boolean
     match result {
         Ok(_) => Ok(cx.boolean(true)),
         Err(_) => Ok(cx.boolean(false)),
     }
 }
 
-#[neon::main]
-fn main(mut cx: ModuleContext) -> NeonResult<()> {
-    cx.export_function("is_valid_solution", is_valid_solution_wrapper)?;
-    Ok(())
-}
+// Register the module and export the is_valid_solution function to JS
+register_module!(mut m, {
+    m.export_function("is_validSolution", is_valid_solution_wrapper)
+});
