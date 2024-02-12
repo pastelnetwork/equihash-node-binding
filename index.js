@@ -1,11 +1,12 @@
 const { is_valid_solution } = require('./native');
 
+// Mimicking the structure of the Rust test vector in JavaScript
 const testVector = {
     params: { n: 200, k: 9 },
     input: Buffer.from("block header"),
     nonce: Buffer.alloc(32, 0), // 32-byte buffer filled with 0s
+    // Assuming we're using the first solution from the provided test vector
     solutions: [
-
         4313, 223176, 448870, 1692641, 214911, 551567, 1696002, 1768726, 500589, 938660,
         724628, 1319625, 632093, 1474613, 665376, 1222606, 244013, 528281, 1741992, 1779660,
         313314, 996273, 435612, 1270863, 337273, 1385279, 1031587, 1147423, 349396, 734528,
@@ -57,12 +58,23 @@ const testVector = {
         380012, 785058, 1675320, 267071, 1095925, 1149690, 1318422, 361557, 1376579, 1587551,
         1715060, 1224593, 1581980, 1354420, 1850496, 151947, 748306, 1987121, 2070676, 273794,
         981619, 683206, 1485056, 766481, 2047708, 930443, 2040726, 1136227, 1945705, 1722044,
-        1971986,
+        1971986
     ]
 };
 
-// Prepare the solutions as a Buffer in the correct format
-const solutionsBuffer = Buffer.from(new Uint32Array(testVector.solutions).buffer);
+
+// Manually serialize each integer in the solutions array to 4 bytes in little-endian order
+const solutionsBytes = testVector.solutions.flatMap((solution) => {
+    const buffer = Buffer.alloc(4);
+    buffer.writeUInt32LE(solution, 0);
+    return Array.from(buffer);
+});
+
+// Create a buffer from the serialized bytes
+const solutionsBuffer = Buffer.from(solutionsBytes);
+
+console.log('Solutions Buffer Length:', solutionsBuffer.length);
+console.log('Solutions Buffer Content:', solutionsBuffer);
 
 // Call the Rust function
 const isValid = is_valid_solution(
