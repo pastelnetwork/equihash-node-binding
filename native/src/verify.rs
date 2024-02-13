@@ -526,7 +526,6 @@ mod tests {
     #[test]
     fn test_valid_solution_direct_input() {
         // Define the Equihash parameters, a sample block header, and a solution.
-        // These values should be replaced with actual valid data for a meaningful test.
         let n = 200;
         let k = 9;
         let block_header_hex = "0400000008e9694cc2120ec1b5733cc12687b609058eec4f7046a521ad1d1e3049b400003e7420ed6f40659de0305ef9b7ec037f4380ed9848bc1c015691c90aa16ff3930000000000000000000000000000000000000000000000000000000000000000c9310d5874e0001f000000000000000000000000000000010b000000000000000000000000000040";
