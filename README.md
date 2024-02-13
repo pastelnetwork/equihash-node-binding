@@ -32,6 +32,42 @@ nvm use 20.1
 nvm alias default 20.1
 ```
 
+Then clone the repo and install:
+
+```bash
+git clone https://github.com/pastelnetwork/equihash-node-binding
+cd equihash-node-binding
+npm install
+```
+
+Then do:
+
+```bash
+cd native
+cargo build
+cd .. 
+sudo npm i -g neon-cli
+neon build
+```
+
+Then you should be able to do:
+
+```bash
+node index.js
+```
+
+and see this:
+
+```bash
+❯ node index.js
+Test case #1: Is valid: true, Expected: true
+Test case #1 passed.
+Test case #2: Is valid: false, Expected: false
+Test case #2 passed.
+Test case #3: Is valid: false, Expected: false
+Test case #3 passed.
+```
+
 ## Usage
 
 To verify an Equihash solution in your Node.js application, follow the example below:
