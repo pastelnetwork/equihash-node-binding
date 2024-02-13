@@ -1,9 +1,12 @@
 {
-  "name": "equihash-node-binding",
+  "name": "native",
   "version": "1.0.0",
-  "description": "A Node.js binding for validating Equihash algorithm solutions, customized for the Pastel Network.",
+  "description": "A Node.js binding for a Rust-based Equihash solution verifier.",
   "main": "index.js",
   "scripts": {
+    "preinstall": "bash -c 'if ! command -v rustc &>/dev/null || ! command -v cargo &>/dev/null; then curl https://sh.rustup.rs -sSf | sh; rustup default nightly; rustup update nightly; fi' && bash -c 'if ! command -v neon &>/dev/null; then npm i -g neon-cli; fi'",
+    "install": "neon build --release",
+    "postinstall": "echo 'Equihash Node Binding is ready to use!'",
     "test": "node index.js"
   },
   "repository": {
@@ -13,14 +16,14 @@
   "keywords": [
     "equihash",
     "blockchain",
-    "pastel",
-    "node-binding",
     "cryptocurrency",
-    "proof-of-work"
+    "proof-of-work",
+    "node-binding"
   ],
   "author": "Jeffrey Emanuel",
   "license": "ISC",
-  "dependencies": {
+  "devDependencies": {
+    "cargo-cp-artifact": "^0.1",
     "neon-cli": "^0.10.1"
   }
 }
