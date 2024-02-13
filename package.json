@@ -1,13 +1,24 @@
 {
   "name": "equihash-node-binding",
   "version": "1.0.0",
-  "description": "",
+  "description": "A Node.js binding for validating Equihash algorithm solutions, customized for the Pastel Network.",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "node index.js"
   },
-  "keywords": [],
-  "author": "",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pastelnetwork/equihash-node-binding"
+  },
+  "keywords": [
+    "equihash",
+    "blockchain",
+    "pastel",
+    "node-binding",
+    "cryptocurrency",
+    "proof-of-work"
+  ],
+  "author": "Jeffrey Emanuel",
   "license": "ISC",
   "dependencies": {
     "neon-cli": "^0.10.1"
