@@ -1,6 +1,6 @@
 const { is_validSolution } = require("./native/index.node");
-const assert = require("assert");
 
+const useVerbose = true;
 function parseBlockHeader(hexString) {
   // Convert hex string to Buffer for easy manipulation
   const buffer = Buffer.from(hexString, "hex");
@@ -43,6 +43,19 @@ function parseBlockHeader(hexString) {
       .toString("hex");
   }
 
+  if (useVerbose) {
+    console.log(`nVersion: ${nVersion}`);
+    console.log(`hashPrevBlock: ${hashPrevBlock}`);
+    console.log(`hashMerkleRoot: ${hashMerkleRoot}`);
+    console.log(`hashFinalSaplingRoot: ${hashFinalSaplingRoot}`);
+    console.log(`nTime: ${nTime}`);
+    console.log(`nBits: ${nBits}`);
+    console.log(`nNonce: ${nNonce}`);
+    console.log(`isV5: ${isV5}`);
+    console.log(`sPastelID: ${sPastelID}`);
+    console.log(`prevMerkleRootSignature: ${prevMerkleRootSignature}`);
+  }
+
   return {
     nVersion,
     hashPrevBlock,
@@ -58,38 +71,30 @@ function parseBlockHeader(hexString) {
 }
 
 function getDataForEquihashValidation(fullBlockHexString) {
-  // Call parseBlockHeader to ensure this is a version 5 block and to potentially use its data
-  // This call is more about validating the block format; specific parsing for Equihash data follows
   const headerInfo = parseBlockHeader(fullBlockHexString);
   if (!headerInfo.isV5) {
     throw new Error("Block is not version 5, Equihash data not applicable");
   }
 
-  // For v5, extract the header excluding nonce and solution, and then append v5 data
-  // These indices and lengths would need to be adjusted based on actual data structure
-  // In this example, it's assumed we know the lengths and positions from the provided structure
-
-  // Extract the v4 header part without nonce and solution (based on provided example)
+  // Extract the v4 header part without nonce and solution
   const headerWithoutNonceAndSolution = fullBlockHexString.substring(
     0,
     214 * 2
-  ); // *2 for hex string (2 characters per byte)
+  ); // *2 for hex string
 
-  // Extract the v5 specific data (based on provided example, adjust as necessary)
-  const v5DataStartIndex = 214 * 2 + 64 * 2 + 6 * 2 + 2688 * 2; // Skipping nonce, solution size, and solution itself
-  const v5DataEndIndex = v5DataStartIndex + (86 * 2 + 114 * 2); // Based on the compact sizes provided in the example
+  // Extract the v5 specific data
+  // This calculation seems correct but ensure it accurately reflects the transition between v4 header and v5 data in your block structure
+  const v5DataStartIndex = 214 * 2; // This is where v4 data ends and v5 data starts
+  // Calculate v5 data end index based on its known length (86 + 114 bytes in the example given)
+  const v5DataEndIndex = v5DataStartIndex + (86 + 114) * 2; // *2 for hex string
   const v5Data = fullBlockHexString.substring(v5DataStartIndex, v5DataEndIndex);
 
-  // Combine v4 header (without nonce and solution) with v5 data for Equihash validation
+  // Correctly combine v4 header (without nonce and solution) with v5 data for Equihash validation
   const headerHexForEquihash = headerWithoutNonceAndSolution + v5Data;
 
-  // Extract the solution part (based on provided example, adjust as necessary)
-  const solutionStartIndex = 214 * 2 + 64 * 2 + 6 * 2; // After header and nonce, including compact size for solution
-  const solutionEndIndex = solutionStartIndex + 2688 * 2; // Length of solution in hex characters
-  const solutionHex = fullBlockHexString.substring(
-    solutionStartIndex,
-    solutionEndIndex
-  );
+  // Extract the solution part
+  const solutionStartIndex = v5DataEndIndex; // Solution starts right after v5 data
+  const solutionHex = fullBlockHexString.substring(solutionStartIndex); // Assuming solution is the rest of the string
 
   return {
     header_hex_string: headerHexForEquihash,
@@ -104,7 +109,8 @@ function runTests() {
 
   const completeTestBlockDataAsHexString =
     "0500000020e87b9ad6547ee05575a1b511f5f81bd618c810e1d6013bd6e18a215092830208ec3d49c7882563766d4bd39d4f623ac80c8a00dbaf1ba20732f57fbd98dcd2d60cbc2d19f4e180dfd8d2170cca76badfcfcdde2f6b6cd55faf2f33d60c2b520b18cd65ef6607200600f2e5a3dc7d15ebd662139ebbae38ab99cfd65eeef76428f237f08e000000fd40050100f29d530ebedfb601d10f023e1ee963b170de842ed5a7440510833b1645147b5fbd5481e149d19f4d137f1d6d87a81da1bc9cb5ddd04edcfe237b13b28a183dc60f4d46ca2d554c1a87dbe8d9ef08299fdf4604c6c29be84332e996f675b722cc322d99761203400c5beae193580efafcc611683058c2cdf61edfa00b0dc65b87162fbc738272953137cb5ebd9d70911d9c1b86326eb149922bf31a3afeae77dbf7053cf897d0030ae3357b5195e92baad2416dc78156ba4156f2f40552b3a47f0c29c0fe4e24582a594b11421b514b4407f101fa6bc3e2fb7ea60170b7b70898d7d6cabbc51075c58399f601a9bf76027f9d73da96945317f66004faab7bcb0a926b414df5e915ffa06e6ae6d734bf08b6a0a43ad0d0e54185138a3049148a340f7d08570b8a5eaf9dde1a352c0830c495cd4c11f5e51bef1435d9eb1a125c8d9551f653d95ce1cd24fe03b3f8260307a035cf510af183e85112aab7b194760f0b61fb0ca3eb786d475df5c319f3e10162ab1abf389de3de084ea612a8e6a823fa6f339befd338db1299ddcd3835eca42b9c19624fd636e551aeca25d627e274cf711bec9c4cd0d643d39147d352147d40e252a4b2f3fc36669d486a22feb3de9a93a9052587d9f961de7da51e15cf8361d526d9a47a429449a60b6e20413d079336a1cd95399a9fabd49d2763c6e89f5657d537eae4048db215afcbc47db82d57bab8fa7646a88ff8aa7618bfb239d3cbcba17ef044b7967930337fdf7e3bee1bd11697149a64a96c0aa201a2aadd5faa21ff36732bb44a92d2568b4b8fddd5471d3d30adde6c162a1409176b7381936fbcf0b0d326e3fd9f82e3f29a45d409d7a55ec3635e63af9847b7a57b95b21ea6d397e10f9ec730d052774d9053d6db487408ee8b539663aa2d698b7e8ce6d1ab564f93e17ea522f584e13e57d401ff8793a824294b6fb991f0ba43a0dccdabd716130708639b4d89c91bb07b81dbc6e4e4fd61df6f7336043d24a37e19108bff48314cc0bbc2077150be6289442e74e16562f167af6314be01aeb6de4776544c8d0213e7c9754ef46d2c4ee637a9b563a1ac457be68c06752242f2e25627630fb396255a80d92e0f2bd747079a8eacb3d0087fc25bb17e0346e118c83b08ccbc18c7832f885bdb2568d3abe19a7809fb848f7fb96305cb1d26d827e0d3efe0e22067164a9927a9375fb3126ef525a1f8d69bf2eb73ba1ca87a7a6fa79676d30c54b19433578f28da60b1dada734e2b3dcb5a58d822cfb1ab6dd28fadc26c82f442da23e9aa5390222f0c3167237b991187518ac32839a7cb0f1647fd7e74342ac73224e949b3cddd0624fdd522338fdf3e051b24d157e7f8dc315bcefe559abdc3aabdeaa8b9cd9c309675c34ca07d153b6af46605ad3b5d5b5db2fbdc05a5468b80963e2ebb0e634201b240b9d567d33aed09cf10d137ce599b7010923412ae9839308db769ab14c0f573b8db11ddfe485425e1f861615dced9eac7503966e1e2a044a770e5974885bdc802efcd7ed31b10811502cbca338d4a3a435e049e03ca45c6b8c5df1fd6f5a36bb3d0fde5b712ded7c78ed5da09d85e3515f447ccce0903f448efb2a6034900d4ff409355da3ff177ac0bde3b0b28e6f5cd4eb1bc070b673df2d909ed074e84c9904d2eef42413ca88045fa4ad81ddb0a847a9905c7bbcc4dd2b2d23332b525ea337559c91e1deb485c70c327ea54435f92c8cbb4f93c32e9b233d7faf5dda56be98b01a83b2a774a96a0465c3c7431acfa72caccaf85fb9aa58e34ce1b670356fb3f6d51ab6477acd9a6c375f8b6f105fe0d46760a1cf17436217ea11c9c7cb31607262a0accb77990bd77eb3346e4ef7898dd75ff2f3b18343669730699b33f5aa6566a585877503931486a795a3271357a466648415143656f444b3554766e774559754a634a597858737139786559676d554c6b3353523845723269796d6f546151344e394d3272636f7746424a47586f5a36796531674e720b2377423a43ce37525c48f3f9fea451d01463c8426b4c562edf2bc9f448f536645a836efadae2a04d7b1f120a64cbfede3ac04fcc51cfa580314fbe25057b4e75c05983c2df0ab2b1ecfda528be6f993e2c3b6cdeef816e204677ecf8573806cbff5c97813ebd681f8d3d5b03da2d203a00010400008085202f89010000000000000000000000000000000000000000000000000000000000000000ffffffff06032e35060101ffffffff020065cd1d000000001976a914a525ad9a09c7fa91a7b9a31fcdf5fca1b75906ed88ac40597307000000001976a914d244e10fe4cde16c8e0ca28b9fc626976f0a1dec88ac00000000423506000000000000000000000000";
-  const {header_hex_string, solution_hex_string} = getDataForEquihashValidation(completeTestBlockDataAsHexString);
+  const { header_hex_string, solution_hex_string } =
+    getDataForEquihashValidation(completeTestBlockDataAsHexString);
   console.log(`Header hex string: ${header_hex_string}`);
   console.log(`Solution hex string: ${solution_hex_string}`);
 
@@ -132,10 +138,8 @@ function runTests() {
       expectedValid: false,
     },
     {
-      blockHeader:
-        header_hex_string,
-      solution:
-      solution_hex_string,
+      blockHeader: header_hex_string,
+      solution: solution_hex_string,
       expectedValid: true,
     },
   ];
