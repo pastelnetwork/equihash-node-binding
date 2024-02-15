@@ -51,6 +51,8 @@ function parseBlockData(rawBlockHexString) {
     const pastelIDHexLength = hexToInt(pastelIDCompactSizeHex) * 2;
     const pastelIDValue = rawBlockHexString.substring(index, index + pastelIDHexLength);
     console.log(`PastelID Value: ${pastelIDValue}`);
+    const pastelIDString = Buffer.from(pastelIDValue, 'hex').toString('utf8');
+    console.log(`PastelID String: ${pastelIDString}`);
     index += pastelIDHexLength;
 
     // Extracting Signature
@@ -77,7 +79,6 @@ function parseBlockData(rawBlockHexString) {
         v5_data_combined: v5_data_combined,
     };
 }
-
 
 function getDataForEquihashValidation(rawBlockHexString) {
   const parsedData = parseBlockData(rawBlockHexString);
