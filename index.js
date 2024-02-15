@@ -1,100 +1,91 @@
 const { is_validSolution } = require("./native/index.node");
 
-const useVerbose = true;
-function parseBlockHeader(hexString) {
-  // Convert hex string to Buffer for easy manipulation
-  const buffer = Buffer.from(hexString, "hex");
+function parseBlockData(rawBlockHexString) {
+    function hexToInt(hex) {
+        return parseInt(hex, 16);
+    }
 
-  // Basic header fields
-  const nVersion = buffer.readInt32LE(0);
-  const hashPrevBlock = buffer.slice(4, 36).toString("hex");
-  const hashMerkleRoot = buffer.slice(36, 68).toString("hex");
-  const hashFinalSaplingRoot = buffer.slice(68, 100).toString("hex");
-  const nTime = buffer.readUInt32LE(100);
-  const nBits = buffer.readUInt32LE(104);
-  const nNonce = buffer.slice(108, 140).toString("hex");
+    function reverseHex(hex) {
+        return hex.match(/../g).reverse().join('');
+    }
 
-  // Determine where the v5 specific data starts (after nonce and solution)
-  // For simplicity, this example assumes that you know the exact location and length of the nonce and solution.
-  // You may need to adjust startIndex based on actual data structure and presence of solution.
-  let startIndex = 140; // Adjust this based on the actual length of the nonce and solution.
+    function getHexLength(input) {
+        if (input.substring(0, 2) === 'fd') {
+            const sizeHexLE = input.substring(2, 6); // Extract '4005' from 'fd4005'
+            const sizeHex = sizeHexLE.substring(2, 4) + sizeHexLE.substring(0, 2); // Convert to big-endian '0540'
+            const byteLength = parseInt(sizeHex, 16); // Convert hex to decimal
+            return byteLength * 2; // Convert byte length to hex character length
+        } else {
+            return "Unsupported format";
+        }
+    }
 
-  let isV5 = false,
-    sPastelID = "",
-    prevMerkleRootSignature = "";
+    let index = 0;
+    const v4DataWithoutNonceAndSolution = rawBlockHexString.substring(index, index + 214);
+    console.log(`V4 Data Without Nonce and Solution: ${v4DataWithoutNonceAndSolution}`);
+    index += 214;
 
-  // Parse v5 specific fields if block version indicates v5
-  if (nVersion >= 5) {
-    isV5 = true;
+    const nonceCompactSize = rawBlockHexString.substring(index, index + 2);
+    console.log(`Nonce Compact Size: ${nonceCompactSize}`);
+    index += 2;
 
-    // Parse sPastelID (example based on provided sample, adjust according to actual data structure)
-    const sPastelIDLength = buffer.readUInt8(startIndex); // Read the compact size for sPastelID
-    startIndex += 1; // Move past the compact size byte
-    sPastelID = buffer
-      .slice(startIndex, startIndex + sPastelIDLength)
-      .toString("utf-8");
-    startIndex += sPastelIDLength;
+    const nonceValueReversed = reverseHex(rawBlockHexString.substring(index, index + 64));
+    console.log(`Nonce Value Reversed: ${nonceValueReversed}`);
+    index += 64;
 
-    // Parse prevMerkleRootSignature (adjust startIndex accordingly)
-    const prevMerkleRootSignatureLength = buffer.readUInt8(startIndex); // Read the compact size for prevMerkleRootSignature
-    startIndex += 1; // Move past the compact size byte
-    prevMerkleRootSignature = buffer
-      .slice(startIndex, startIndex + prevMerkleRootSignatureLength)
-      .toString("hex");
-  }
+    // Correct handling of solution compact size and value
+    const solutionCompactSizeHex = rawBlockHexString.substring(index, index + 6); // Includes 'fd' prefix
+    const solutionHexLength = getHexLength(solutionCompactSizeHex);
+    console.log(`Solution Compact Size Hex: ${solutionCompactSizeHex}`);
+    console.log(`Solution Hex Length: ${solutionHexLength}`);
+    index += 6; // Move past compact size
+    const solutionValue = rawBlockHexString.substring(index, index + solutionHexLength);
+    console.log(`Solution Value: ${solutionValue}`);
+    index += solutionHexLength;
 
-  if (useVerbose) {
-    console.log(`nVersion: ${nVersion}`);
-    console.log(`hashPrevBlock: ${hashPrevBlock}`);
-    console.log(`hashMerkleRoot: ${hashMerkleRoot}`);
-    console.log(`hashFinalSaplingRoot: ${hashFinalSaplingRoot}`);
-    console.log(`nTime: ${nTime}`);
-    console.log(`nBits: ${nBits}`);
-    console.log(`nNonce: ${nNonce}`);
-    console.log(`isV5: ${isV5}`);
-    console.log(`sPastelID: ${sPastelID}`);
-    console.log(`prevMerkleRootSignature: ${prevMerkleRootSignature}`);
-  }
+    // Extracting PastelID
+    const pastelIDCompactSizeHex = rawBlockHexString.substring(index, index + 2); // '56' prefix for PastelID
+    index += 2; // Move past compact size prefix
+    const pastelIDHexLength = hexToInt(pastelIDCompactSizeHex) * 2;
+    const pastelIDValue = rawBlockHexString.substring(index, index + pastelIDHexLength);
+    console.log(`PastelID Value: ${pastelIDValue}`);
+    index += pastelIDHexLength;
 
-  return {
-    nVersion,
-    hashPrevBlock,
-    hashMerkleRoot,
-    hashFinalSaplingRoot,
-    nTime,
-    nBits,
-    nNonce,
-    isV5,
-    sPastelID,
-    prevMerkleRootSignature,
-  };
+    // Extracting Signature
+    const signatureCompactSizeHex = rawBlockHexString.substring(index, index + 2); // '72' prefix for Signature
+    index += 2; // Move past compact size prefix
+    const signatureHexLength = hexToInt(signatureCompactSizeHex) * 2;
+    const signatureValue = rawBlockHexString.substring(index, index + signatureHexLength);
+    console.log(`Signature Value: ${signatureValue}`);
+    index += signatureHexLength;
+
+    const blockTxData = rawBlockHexString.substring(index);
+    console.log(`Block TX Data: ${blockTxData}`);
+
+    return {
+        v4_data_without_nonce_and_solution: v4DataWithoutNonceAndSolution,
+        nonce_value_reversed: nonceValueReversed,
+        solution_value: solutionValue,
+        pastelid_value_in_hex: pastelIDValue,
+        signature_value: signatureValue,
+        block_tx_data: blockTxData
+    };
 }
 
-function getDataForEquihashValidation(fullBlockHexString) {
-  const headerInfo = parseBlockHeader(fullBlockHexString);
-  if (!headerInfo.isV5) {
-    throw new Error("Block is not version 5, Equihash data not applicable");
-  }
 
-  // Extract the v4 header part without nonce and solution
-  const headerWithoutNonceAndSolution = fullBlockHexString.substring(
-    0,
-    214 * 2
-  ); // *2 for hex string
+function getDataForEquihashValidation(rawBlockHexString) {
+  const parsedData = parseBlockData(rawBlockHexString);
 
-  // Extract the v5 specific data
-  // This calculation seems correct but ensure it accurately reflects the transition between v4 header and v5 data in your block structure
-  const v5DataStartIndex = 214 * 2; // This is where v4 data ends and v5 data starts
-  // Calculate v5 data end index based on its known length (86 + 114 bytes in the example given)
-  const v5DataEndIndex = v5DataStartIndex + (86 + 114) * 2; // *2 for hex string
-  const v5Data = fullBlockHexString.substring(v5DataStartIndex, v5DataEndIndex);
+  // Log the parsed data for verification
+  console.log("Parsed Data:", parsedData);
 
-  // Correctly combine v4 header (without nonce and solution) with v5 data for Equihash validation
-  const headerHexForEquihash = headerWithoutNonceAndSolution + v5Data;
+  // The header for Equihash validation consists of the v4 data (without nonce and solution) and the v5 data.
+  // Make sure to concatenate the v4 data, pastelID, and signature correctly as per the new parsing logic.
+  const headerHexForEquihash = `${parsedData.v4_data_without_nonce_and_solution}${parsedData.nonce_value_reversed}${parsedData.pastelid_value_in_hex}${parsedData.signature_value}`;
+  const solutionHex = parsedData.solution_value;
 
-  // Extract the solution part
-  const solutionStartIndex = v5DataEndIndex; // Solution starts right after v5 data
-  const solutionHex = fullBlockHexString.substring(solutionStartIndex); // Assuming solution is the rest of the string
+  console.log("Header Hex for Equihash:", headerHexForEquihash);
+  console.log("Solution Hex:", solutionHex);
 
   return {
     header_hex_string: headerHexForEquihash,
@@ -167,6 +158,6 @@ runTests();
 
 module.exports = {
   is_validSolution,
-  parseBlockHeader,
+  parseBlockData,
   getDataForEquihashValidation,
 };
