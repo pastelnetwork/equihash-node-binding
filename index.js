@@ -175,10 +175,105 @@ function runTests() {
       console.error(`Test case #${index + 1} failed.`);
     }
   });
+
+  function stringToHex(str) {
+    return str
+      .split("")
+      .map((c) => c.charCodeAt(0).toString(16).padStart(2, "0"))
+      .join("");
+  }
+
+function serializeHeader(
+    nTime,
+    nonce,
+    version,
+    prevHashReversed,
+    merkleRootReversed,
+    hashReserved,
+    difficulty_bits,
+    currently_selected_supernode_pastelid_pubkey,
+    currently_selected_supernode_signature
+  ) {
+    var bufferLength = 1024; // Sufficient buffer size for additional fields
+    var header = Buffer.alloc(bufferLength);
+    var position = 0;
+
+    // Version (4 bytes)
+    header.writeUInt32LE(version, position);
+    position += 4;
+
+    // Previous block hash length (Compact Size)
+    var prevHashLength = writeCompactSize(32); // Hash length as compact size
+    prevHashLength.copy(header, position);
+    position += prevHashLength.length;
+
+    // Previous block hash (32 bytes)
+    Buffer.from(prevHashReversed, "hex").copy(header, position);
+    position += 32;
+
+    // Merkle root length (Compact Size)
+    var merkleRootLength = writeCompactSize(32); // Hash length as compact size
+    merkleRootLength.copy(header, position);
+    position += merkleRootLength.length;
+
+    // Merkle root (32 bytes)
+    Buffer.from(merkleRootReversed, "hex").copy(header, position);
+    position += 32;
+
+    // Reserved field (32 bytes) - Adjusted to match the example if necessary
+    Buffer.from(hashReserved, "hex").copy(header, position);
+    position += 32;
+
+    // Time (4 bytes)
+    header.writeUInt32LE(parseInt(nTime, 16), position); // Correctly parsing nTime as hex
+    position += 4;
+
+    // Bits, difficulty (4 bytes)
+    Buffer.from(difficulty_bits, "hex").reverse().copy(header, position);
+    position += 4;
+
+    // Nonce (Variable size)
+    // Assuming nonce is correctly reversed if needed based on block version
+    var nonceBuffer = Buffer.from(nonce, "hex");
+    nonceBuffer.copy(header, position);
+    position += nonceBuffer.length; // Adjust based on actual nonce length
+
+    // Conditional handling for Version 5 specific fields
+    if (version >= 5) {
+      // PastelID
+      const pastelid_value_in_hex = stringToHex(
+        currently_selected_supernode_pastelid_pubkey
+      );
+      const pastelIdBuffer = Buffer.from(pastelid_value_in_hex, "hex");
+      const pastelIdLengthBuffer = Buffer.alloc(1);
+      pastelIdLengthBuffer.writeUInt8(pastelIdBuffer.length, 0); // Writing length as a compact size
+      pastelIdLengthBuffer.copy(header, position);
+      position += pastelIdLengthBuffer.length;
+      pastelIdBuffer.copy(header, position);
+      position += pastelIdBuffer.length;
+
+      // Signature
+      const signature_value_in_hex = stringToHex(
+        currently_selected_supernode_signature
+      );
+      const signatureBuffer = Buffer.from(signature_value_in_hex, "hex");
+      const signatureLengthBuffer = Buffer.alloc(1);
+      signatureLengthBuffer.writeUInt8(signatureBuffer.length, 0); // Writing length
+      signatureLengthBuffer.copy(header, position);
+      position += signatureLengthBuffer.length;
+      signatureBuffer.copy(header, position);
+      position += signatureBuffer.length;
+    }
+
+    // Trim the buffer to the actual used size
+    var trimmedHeader = header.slice(0, position);
+
+    return trimmedHeader;
+  }
 }
 
 // Run the tests
-// runTests();
+runTests();
 
 module.exports = {
   is_validSolution,
