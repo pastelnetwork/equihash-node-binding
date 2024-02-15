@@ -1,88 +1,113 @@
 const { is_validSolution } = require("./native/index.node");
 
 function parseBlockData(rawBlockHexString) {
-    function hexToInt(hex) {
-        return parseInt(hex, 16);
+  function hexToInt(hex) {
+    return parseInt(hex, 16);
+  }
+
+  function reverseHex(hex) {
+    return hex.match(/../g).reverse().join("");
+  }
+
+  function getHexLength(input) {
+    if (input.substring(0, 2) === "fd") {
+      const sizeHexLE = input.substring(2, 6); // Extract '4005' from 'fd4005'
+      const sizeHex = sizeHexLE.substring(2, 4) + sizeHexLE.substring(0, 2); // Convert to big-endian '0540'
+      const byteLength = parseInt(sizeHex, 16); // Convert hex to decimal
+      return byteLength * 2; // Convert byte length to hex character length
+    } else {
+      return "Unsupported format";
     }
+  }
 
-    function reverseHex(hex) {
-        return hex.match(/../g).reverse().join('');
-    }
+  let index = 0;
+  const v4DataWithoutNonceAndSolution = rawBlockHexString.substring(
+    index,
+    index + 214
+  );
+  console.log(
+    `V4 Data Without Nonce and Solution: ${v4DataWithoutNonceAndSolution}`
+  );
+  index += 214;
 
-    function getHexLength(input) {
-        if (input.substring(0, 2) === 'fd') {
-            const sizeHexLE = input.substring(2, 6); // Extract '4005' from 'fd4005'
-            const sizeHex = sizeHexLE.substring(2, 4) + sizeHexLE.substring(0, 2); // Convert to big-endian '0540'
-            const byteLength = parseInt(sizeHex, 16); // Convert hex to decimal
-            return byteLength * 2; // Convert byte length to hex character length
-        } else {
-            return "Unsupported format";
-        }
-    }
+  const nonceCompactSize = rawBlockHexString.substring(index, index + 2);
+  console.log(`Nonce Compact Size: ${nonceCompactSize}`);
+  index += 2;
 
-    let index = 0;
-    const v4DataWithoutNonceAndSolution = rawBlockHexString.substring(index, index + 214);
-    console.log(`V4 Data Without Nonce and Solution: ${v4DataWithoutNonceAndSolution}`);
-    index += 214;
+  const nonceValueReversed = reverseHex(
+    rawBlockHexString.substring(index, index + 64)
+  );
+  console.log(`Nonce Value Reversed: ${nonceValueReversed}`);
+  index += 64;
 
-    const nonceCompactSize = rawBlockHexString.substring(index, index + 2);
-    console.log(`Nonce Compact Size: ${nonceCompactSize}`);
-    index += 2;
+  // Correct handling of solution compact size and value
+  const solutionCompactSizeHex = rawBlockHexString.substring(index, index + 6); // Includes 'fd' prefix
+  const solutionHexLength = getHexLength(solutionCompactSizeHex);
+  console.log(`Solution Compact Size Hex: ${solutionCompactSizeHex}`);
+  console.log(`Solution Hex Length: ${solutionHexLength}`);
+  index += 6; // Move past compact size
+  const solutionValue = rawBlockHexString.substring(
+    index,
+    index + solutionHexLength
+  );
+  console.log(`Solution Value: ${solutionValue}`);
+  index += solutionHexLength;
 
-    const nonceValueReversed = reverseHex(rawBlockHexString.substring(index, index + 64));
-    console.log(`Nonce Value Reversed: ${nonceValueReversed}`);
-    index += 64;
+  const v5_data_combined_with_tx_data = rawBlockHexString.substring(index);
 
-    // Correct handling of solution compact size and value
-    const solutionCompactSizeHex = rawBlockHexString.substring(index, index + 6); // Includes 'fd' prefix
-    const solutionHexLength = getHexLength(solutionCompactSizeHex);
-    console.log(`Solution Compact Size Hex: ${solutionCompactSizeHex}`);
-    console.log(`Solution Hex Length: ${solutionHexLength}`);
-    index += 6; // Move past compact size
-    const solutionValue = rawBlockHexString.substring(index, index + solutionHexLength);
-    console.log(`Solution Value: ${solutionValue}`);
-    index += solutionHexLength;
+  // Extracting PastelID
+  const pastelIDCompactSizeHex = rawBlockHexString.substring(index, index + 2); // '56' prefix for PastelID
+  index += 2; // Move past compact size prefix
+  const pastelIDHexLength = hexToInt(pastelIDCompactSizeHex) * 2;
+  const pastelIDValue = rawBlockHexString.substring(
+    index,
+    index + pastelIDHexLength
+  );
+  console.log(`PastelID Value: ${pastelIDValue}`);
+  const pastelIDString = Buffer.from(pastelIDValue, "hex").toString("utf8");
+  console.log(`PastelID String: ${pastelIDString}`);
+  index += pastelIDHexLength;
 
-    const v5_data_combined_with_tx_data = rawBlockHexString.substring(index);
+  // Extracting Signature
+  const signatureCompactSizeHex = rawBlockHexString.substring(index, index + 2); // '72' prefix for Signature
+  index += 2; // Move past compact size prefix
+  const signatureHexLength = hexToInt(signatureCompactSizeHex) * 2;
+  const signatureValue = rawBlockHexString.substring(
+    index,
+    index + signatureHexLength
+  );
+  console.log(`Signature Value: ${signatureValue}`);
+  index += signatureHexLength;
 
-    // Extracting PastelID
-    const pastelIDCompactSizeHex = rawBlockHexString.substring(index, index + 2); // '56' prefix for PastelID
-    index += 2; // Move past compact size prefix
-    const pastelIDHexLength = hexToInt(pastelIDCompactSizeHex) * 2;
-    const pastelIDValue = rawBlockHexString.substring(index, index + pastelIDHexLength);
-    console.log(`PastelID Value: ${pastelIDValue}`);
-    const pastelIDString = Buffer.from(pastelIDValue, 'hex').toString('utf8');
-    console.log(`PastelID String: ${pastelIDString}`);
-    index += pastelIDHexLength;
+  const blockTxData = rawBlockHexString.substring(index);
+  console.log(`Block TX Data: ${blockTxData}`);
 
-    // Extracting Signature
-    const signatureCompactSizeHex = rawBlockHexString.substring(index, index + 2); // '72' prefix for Signature
-    index += 2; // Move past compact size prefix
-    const signatureHexLength = hexToInt(signatureCompactSizeHex) * 2;
-    const signatureValue = rawBlockHexString.substring(index, index + signatureHexLength);
-    console.log(`Signature Value: ${signatureValue}`);
-    index += signatureHexLength;
+  const v5_data_combined = v5_data_combined_with_tx_data.substring(
+    0,
+    v5_data_combined_with_tx_data.length - blockTxData.length
+  );
+  console.log(`V5 Data Combined: ${v5_data_combined}`);
 
-    const blockTxData = rawBlockHexString.substring(index);
-    console.log(`Block TX Data: ${blockTxData}`);
-
-    const v5_data_combined = v5_data_combined_with_tx_data.substring(0, v5_data_combined_with_tx_data.length - blockTxData.length - 1);
-    console.log(`V5 Data Combined: ${v5_data_combined}`);
-
-    return {
-        v4_data_without_nonce_and_solution: v4DataWithoutNonceAndSolution,
-        nonce_value_reversed: nonceValueReversed,
-        solution_value: solutionValue,
-        pastelid_value_in_hex: pastelIDValue,
-        signature_value: signatureValue,
-        block_tx_data: blockTxData,
-        v5_data_combined: v5_data_combined,
-    };
+  return {
+    v4_data_without_nonce_and_solution: v4DataWithoutNonceAndSolution,
+    nonce_compact_size: nonceCompactSize,
+    nonce_value_reversed: nonceValueReversed,
+    solution_value: solutionValue,
+    pastelid_value_in_hex: pastelIDValue,
+    signature_value: signatureValue,
+    block_tx_data: blockTxData,
+    v5_data_combined: v5_data_combined,
+  };
 }
 
 function getDataForEquihashValidation(rawBlockHexString) {
+  function reverseHex(hex) {
+    return hex.match(/../g).reverse().join("");
+  }
+
   const parsedData = parseBlockData(rawBlockHexString);
-  const headerHexForEquihash = `${parsedData.v4_data_without_nonce_and_solution}${parsedData.v5_data_combined}`;
+  const nonceValueForwards = reverseHex(parsedData.nonce_value_reversed);
+  const headerHexForEquihash = `${parsedData.v4_data_without_nonce_and_solution}${parsedData.nonce_compact_size}${parsedData.v5_data_combined}${nonceValueForwards}`;
   const solutionHex = parsedData.solution_value;
 
   console.log("Header Hex for Equihash:", headerHexForEquihash);
@@ -153,7 +178,7 @@ function runTests() {
 }
 
 // Run the tests
-runTests();
+// runTests();
 
 module.exports = {
   is_validSolution,
