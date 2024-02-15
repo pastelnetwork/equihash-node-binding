@@ -43,6 +43,8 @@ function parseBlockData(rawBlockHexString) {
     console.log(`Solution Value: ${solutionValue}`);
     index += solutionHexLength;
 
+    const v5_data_combined_with_tx_data = rawBlockHexString.substring(index);
+
     // Extracting PastelID
     const pastelIDCompactSizeHex = rawBlockHexString.substring(index, index + 2); // '56' prefix for PastelID
     index += 2; // Move past compact size prefix
@@ -62,20 +64,24 @@ function parseBlockData(rawBlockHexString) {
     const blockTxData = rawBlockHexString.substring(index);
     console.log(`Block TX Data: ${blockTxData}`);
 
+    const v5_data_combined = v5_data_combined_with_tx_data.substring(0, v5_data_combined_with_tx_data.length - blockTxData.length - 1);
+    console.log(`V5 Data Combined: ${v5_data_combined}`);
+
     return {
         v4_data_without_nonce_and_solution: v4DataWithoutNonceAndSolution,
         nonce_value_reversed: nonceValueReversed,
         solution_value: solutionValue,
         pastelid_value_in_hex: pastelIDValue,
         signature_value: signatureValue,
-        block_tx_data: blockTxData
+        block_tx_data: blockTxData,
+        v5_data_combined: v5_data_combined,
     };
 }
 
 
 function getDataForEquihashValidation(rawBlockHexString) {
   const parsedData = parseBlockData(rawBlockHexString);
-  const headerHexForEquihash = `${parsedData.v4_data_without_nonce_and_solution}${parsedData.nonce_value_reversed}${parsedData.pastelid_value_in_hex}${parsedData.signature_value}`;
+  const headerHexForEquihash = `${parsedData.v4_data_without_nonce_and_solution}${parsedData.v5_data_combined}`;
   const solutionHex = parsedData.solution_value;
 
   console.log("Header Hex for Equihash:", headerHexForEquihash);
