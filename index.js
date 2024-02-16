@@ -21,27 +21,26 @@ function writeCompactSize(length, buffer, pos) {
   return bytesWritten;
 }
 
-function readCompactSize(input, pos) {
+function readCompactSizeFromHex(input_hex, pos) {
   // Parse the prefix to determine how many bytes are used for the value
-  const prefixHex = input.substring(pos, pos + 2);
+  const prefixHex = input_hex.substring(pos, pos + 2);
   const prefix = parseInt(prefixHex, 16);
   let value = 0;
   let bytesRead = 0;
 
-  console.log(`Prefix: ${prefix}`);
   if (prefix < 0xfd) {
     // The prefix is the value
     value = prefix;
     bytesRead = 1;
   } else if (prefix === 0xfd) {
     // The next two bytes are the value
-    const sizeHexLE = input.substring(pos + 2, pos + 6); // Little-endian hex string
+    const sizeHexLE = input_hex.substring(pos + 2, pos + 6); // Little-endian hex string
     const sizeHex = sizeHexLE.substring(2, 4) + sizeHexLE.substring(0, 2); // Convert to big-endian
     value = parseInt(sizeHex, 16);
     bytesRead = 3;
   } else if (prefix === 0xfe) {
     // The next four bytes are the value
-    const sizeHexLE = input.substring(pos + 2, pos + 10); // Little-endian hex string
+    const sizeHexLE = input_hex.substring(pos + 2, pos + 10); // Little-endian hex string
     const sizeHex =
       sizeHexLE.substring(6, 8) +
       sizeHexLE.substring(4, 6) +
@@ -51,7 +50,7 @@ function readCompactSize(input, pos) {
     bytesRead = 5;
   } else if (prefix === 0xff) {
     // The next eight bytes are the value
-    const sizeHexLE = input.substring(pos + 2, pos + 18); // Little-endian hex string
+    const sizeHexLE = input_hex.substring(pos + 2, pos + 18); // Little-endian hex string
     const sizeHex =
       sizeHexLE.substring(14, 16) +
       sizeHexLE.substring(12, 14) +
@@ -70,6 +69,38 @@ function readCompactSize(input, pos) {
 
   let hexLength = bytesRead * 2;
   return { value, hexLength };
+}
+
+function readCompactSize(inputBuffer, pos) {
+  // Parse the prefix to determine how many bytes are used for the value
+  const prefix = inputBuffer.readUInt8(pos);
+  let value = 0;
+  let bytesRead = 0;
+
+  if (prefix < 0xfd) {
+    // The prefix is the value
+    value = prefix;
+    bytesRead = 1;
+  } else if (prefix === 0xfd) {
+    // The next two bytes are the value, read as little-endian
+    value = inputBuffer.readUInt16LE(pos + 1);
+    bytesRead = 3; // Prefix + 2 bytes
+  } else if (prefix === 0xfe) {
+    // The next four bytes are the value, read as little-endian
+    value = inputBuffer.readUInt32LE(pos + 1);
+    bytesRead = 5; // Prefix + 4 bytes
+  } else if (prefix === 0xff) {
+    // The next eight bytes are the value, read as little-endian
+    // Note: JavaScript numbers can only safely represent integers up to 2^53 - 1,
+    // but we are reading this as a buffer, not a number, due to JavaScript limitations.
+    value = inputBuffer.readBigUInt64LE(pos + 1);
+    bytesRead = 9; // Prefix + 8 bytes
+  } else {
+    // Unsupported format
+    return "Unsupported format";
+  }
+
+  return { value, bytesRead };
 }
 
 function parseBlockData(rawBlockHexString) {
@@ -92,7 +123,7 @@ function parseBlockData(rawBlockHexString) {
   pos += uint256Size;
 
   // solution compact size and value
-  const solutionSize = readCompactSize(rawBlockHexString, pos);
+  const solutionSize = readCompactSizeFromHex(rawBlockHexString, pos);
   console.log(`Solution Size Hex Length: ${solutionSize.hexLength}`);
   console.log(`Solution Size: ${solutionSize.value}`);
   pos += solutionSize.hexLength; // Move past solution compact size in hex string
@@ -107,22 +138,21 @@ function parseBlockData(rawBlockHexString) {
 
   // Extracting PastelID
   let pos_v5 = 0;
-  const pastelIDSize = readCompactSize(v5_data_combined_with_tx_data, pos_v5);
+  const pastelIDSize = readCompactSizeFromHex(v5_data_combined_with_tx_data, pos_v5);
   console.log(`Pastel ID Size Hex Length: ${pastelIDSize.hexLength}`);
   console.log(`Pastel ID Size: ${pastelIDSize.value}`);
   pos_v5 += pastelIDSize.hexLength; // Move past Pastel ID compact size in hex string
 
-  const pastelIDValue = v5_data_combined_with_tx_data.substring(
+  const pastelid_in_hex = v5_data_combined_with_tx_data.substring(
     pos_v5,
-    pos_v5 + pastelIDSize.value * 2
-  );
-  console.log(`Pastel ID (hex): ${pastelIDValue}`);
-  const pastelIDString = Buffer.from(pastelIDValue, "hex").toString("utf8");
+    pos_v5 + pastelIDSize.value * 2);
+  console.log(`Pastel ID (hex): ${pastelid_in_hex}`);
+  const pastelIDString = Buffer.from(pastelid_in_hex, "hex").toString("utf8");
   console.log(`Pastel ID: ${pastelIDString}`);
   pos_v5 += pastelIDSize.value * 2;
 
   // Extracting Signature
-  const signatureSize = readCompactSize(v5_data_combined_with_tx_data, pos_v5);
+  const signatureSize = readCompactSizeFromHex(v5_data_combined_with_tx_data, pos_v5);
   console.log(`Signature Size Hex Length: ${signatureSize.hexLength}`);
   console.log(`Signature Size: ${signatureSize.value}`);
   pos_v5 += signatureSize.hexLength; // Move past Signature compact size in hex string
@@ -147,7 +177,7 @@ function parseBlockData(rawBlockHexString) {
     v4_data_without_nonce_and_solution: v4HexDataWithoutNonceAndSolution,
     nonce_value_in_hex: nonceValue,
     solution_value_in_hex: solutionValue,
-    pastelid_value_in_hex: pastelIDValue,
+    pastelid_value_in_hex: pastelid_in_hex,
     signature_value_in_hex: signatureValue,
     v5_data_combined_in_hex: v5_data_combined,
   };
@@ -167,14 +197,20 @@ function getDataForEquihashValidation(rawBlockHexString) {
   };
 }
 
-function stringToHex(str) {
-  return str
-    .split("")
-    .map((c) => c.charCodeAt(0).toString(16).padStart(2, "0"))
-    .join("");
+// function to get compact size length
+function getCompactSizeLength(length) {
+  if (length < 253) {
+      return 1;
+  } else if (length <= 0xffff) {
+      return 3;
+  } else if (length <= 0xffffffff) {
+      return 5;
+  } else {
+      return 9;
+  }
 }
 
-function serializeEquihashInput(
+function serializeHeader(
   nTime,
   nonce,
   version,
@@ -182,68 +218,68 @@ function serializeEquihashInput(
   merkleRootReversed,
   hashFinalSaplingRootReversed,
   difficulty_bits,
-  currently_selected_supernode_pastelid_pubkey,
-  currently_selected_supernode_signature
+  pastelid_pubkey_in_hex,
+  signature_in_hex,
+  solution_in_hex
 ) {
-  var bufferLength = 1024; // Sufficient buffer size for additional fields
-  var ehInput = Buffer.alloc(bufferLength);
+  var bufferLength = 3024; // Sufficient buffer size for additional fields
+  var header = Buffer.alloc(bufferLength);
   var position = 0;
 
   // Version (4 bytes)
-  ehInput.writeUInt32LE(version, position);
+  header.writeUInt32LE(version, position);
   position += 4;
 
   // Previous block hash (32 bytes)
-  Buffer.from(prevHashReversed, "hex").copy(ehInput, position);
-  position += prevHashReversed.length;
+  Buffer.from(prevHashReversed, "hex").copy(header, position);
+  position += prevHashReversed.length / 2;
 
   // Merkle root (32 bytes)
-  Buffer.from(merkleRootReversed, "hex").copy(ehInput, position);
-  position += merkleRootReversed.length;
+  Buffer.from(merkleRootReversed, "hex").copy(header, position);
+  position += merkleRootReversed.length / 2;
 
   // Final sapling root hash field (32 bytes)
-  Buffer.from(hashFinalSaplingRootReversed, "hex").copy(ehInput, position);
-  position += hashFinalSaplingRootReversed.length;
+  Buffer.from(hashFinalSaplingRootReversed, "hex").copy(header, position);
+  position += hashFinalSaplingRootReversed.length / 2;
 
   // Time (4 bytes)
-  ehInput.writeUInt32LE(parseInt(nTime, 16), position); // Correctly parsing nTime as hex
+  header.writeUInt32LE(nTime, position); // Correctly parsing nTime as hex
   position += 4;
 
   // Bits, difficulty (4 bytes)
-  Buffer.from(difficulty_bits, "hex").reverse().copy(ehInput, position);
+  Buffer.from(difficulty_bits, "hex").copy(header, position);
   position += 4;
+
+  // Nonce (32 bytes)
+  // Assuming nonce is correctly reversed if needed based on block version
+  const nonceBuffer = Buffer.from(nonce, "hex");
+  nonceBuffer.copy(header, position);
+  position += nonceBuffer.length; 
+
+  // Solution Compact Size and Value
+  const solutionBuffer = Buffer.from(solution_in_hex, "hex");
+  position += writeCompactSize(solutionBuffer.length, header, position);
+  solutionBuffer.copy(header, position);
+  position += solutionBuffer.length;
 
   // Conditional handling for Version 5 specific fields
   if (version >= 5) {
     // PastelID (variable length)
-    const pastelIdBuffer = Buffer.from(
-      currently_selected_supernode_pastelid_pubkey,
-      "utf-8"
-    );
+    const pastelIdBuffer = Buffer.from(pastelid_pubkey_in_hex, "hex");
     // PastelID compact size
-    position += writeCompactSize(pastelIdBuffer.length, ehInput, position);
-    pastelIdBuffer.copy(ehInput, position);
+    position += writeCompactSize(pastelIdBuffer.length, header, position);
+    pastelIdBuffer.copy(header, position);
     position += pastelIdBuffer.length;
 
     // Signature (variable length)
-    const signatureBuffer = Buffer.from(
-      currently_selected_supernode_signature,
-      "utf-8"
-    );
-    // signature compact size
-    position += writeCompactSize(signatureBuffer.length, ehInput, position);
-    signatureBuffer.copy(ehInput, position);
+    const signatureBuffer = Buffer.from(signature_in_hex, "hex"); 
+    position += writeCompactSize(signatureBuffer.length, header, position);
+    signatureBuffer.copy(header, position);
     position += signatureBuffer.length;
   }
 
-  // Nonce (32 bytes)
-  // Assuming nonce is correctly reversed if needed based on block version
-  var nonceBuffer = Buffer.from(nonce, "hex");
-  nonceBuffer.copy(ehInput, position);
-  position += nonceBuffer.length; // Adjust based on actual nonce length
-
   // Trim the buffer to the actual used size
-  var trimmedHeader = ehInput.slice(0, position);
+  var trimmedHeader = header.slice(0, position);
 
   return trimmedHeader;
 }
@@ -253,19 +289,20 @@ function prepareForSerialization(parsedData) {
   const v4Data = parsedData.v4_data_without_nonce_and_solution;
 
   // Extracting the version, previous hash, merkle root, and reserved hash from the v4 data
-  const version = parseInt(v4Data.substring(0, 8), 16); // First 4 bytes for version
+  const version = parseInt(reverseHex(v4Data.substring(0, 8)), 16); // First 4 bytes for version
   const prevHashReversed = v4Data.substring(8, 72); // Next 32 bytes for prev hash, assuming it's already reversed in v4 data
   const merkleRootReversed = v4Data.substring(72, 136); // Following 32 bytes for merkle root, assuming it's already reversed
-  const hashReserved = v4Data.substring(136, 200); // Following 32 bytes for reserved hash
-  const nTime = parseInt(v4Data.substring(200, 208), 16).toString(16); // Next 4 bytes for nTime
+  const hashFinalSaplingRootReversed = v4Data.substring(136, 200); // Following 32 bytes for Final Sapling Root, assuming it's already reversed
+  const nTime = parseInt(reverseHex(v4Data.substring(200, 208)), 16); // Convert to decimal
   const difficultyBits = v4Data.substring(208, 216); // Next 4 bytes for difficulty bits
 
   // Nonce handling - Convert from reversed hex to regular hex
-  const nonce = parsedData.nonce_value_reversed.match(/../g).reverse().join("");
+  const nonce = parsedData.nonce_value_in_hex;
 
   // PastelID and Signature handling - Convert from hex to expected format for serialization
   const pastelidPubkey = parsedData.pastelid_value_in_hex;
-  const signature = parsedData.signature_value;
+  const signature = parsedData.signature_value_in_hex;
+  const solution = parsedData.solution_value_in_hex;
 
   return {
     nTime,
@@ -273,16 +310,20 @@ function prepareForSerialization(parsedData) {
     version,
     prevHashReversed,
     merkleRootReversed,
-    hashReserved,
+    hashFinalSaplingRootReversed,
     difficultyBits,
     pastelidPubkey,
     signature,
+    solution
   };
+}
+
+function reverseHex(hex) {
+    return hex.match(/../g).reverse().join("");
 }
 
 function prepareForParsing(serializedHeader) {
   let position = 0;
-  let index = 0;
   const output = {};
 
   // Assuming the serializedHeader includes V4 data, nonce, solution, PastelID, and signature in that order
@@ -294,54 +335,78 @@ function prepareForParsing(serializedHeader) {
     .toString("hex");
   position += v4DataLength;
 
-  // Nonce Compact Size and Value
-  const nonceCompactSizeLength = 1; // Assuming 1 byte for nonce compact size
-  const nonceCompactSize = serializedHeader.readUInt8(position);
-  position += nonceCompactSizeLength;
-  output.nonce_compact_size = writeCompactSize(
-    nonceCompactSize,
-    Buffer.alloc(nonceCompactSizeLength),
-    0
-  ).toString("hex");
-
-  const nonceLength = nonceCompactSize; // Update this based on actual logic for nonce length
   const nonceValue = serializedHeader
-    .slice(position, position + nonceLength)
+    .slice(position, position + 32)
     .toString("hex");
-  position += nonceLength;
+  position += 32;
   output.nonce_value_reversed = reverseHex(nonceValue);
 
   // Solution Compact Size and Value
-  const solutionCompactSizeLength = 3; // Assuming 'fd' prefix indicating 2-byte length
-  const solutionSize = serializedHeader.readUInt16LE(position + 1); // Skipping 'fd'
-  position += solutionCompactSizeLength;
-  output.solution_compact_size_hex =
-    "fd" + serializedHeader.slice(position - 2, position).toString("hex");
+  const solutionSize = readCompactSize(serializedHeader, position);
+  position += solutionSize.bytesRead;
+  output.solution_compact_size_hex = Buffer.alloc(getCompactSizeLength(solutionSize.value)); 
+  writeCompactSize(solutionSize.value, output.solution_compact_size_hex, 0);
 
   const solutionValue = serializedHeader
-    .slice(position, position + solutionSize)
+    .slice(position, position + solutionSize.value)
     .toString("hex");
-  position += solutionSize;
+  position += solutionSize.value;
   output.solution_value = reverseHex(solutionValue); // Assuming solution needs reversal
 
   // PastelID
-  const pastelIDLength = serializedHeader.readUInt8(position); // Assuming compact size is 1 byte
-  position += 1;
-  const pastelIDValue = serializedHeader
-    .slice(position, position + pastelIDLength)
+  const pastelIDSize = readCompactSize(serializedHeader, position); // Assuming compact size is 1 byte
+  position += pastelIDSize.bytesRead;
+  output.pastelid_value_in_hex = serializedHeader
+    .slice(position, position + pastelIDSize.value)
     .toString("hex");
-  position += pastelIDLength;
-  output.pastelid_value_in_hex = pastelIDValue;
+  position += pastelIDSize.value;
 
   // Signature
-  const signatureLength = serializedHeader.readUInt8(position); // Assuming compact size is 1 byte
-  position += 1;
-  const signatureValue = serializedHeader
-    .slice(position, position + signatureLength)
+  const signatureSize = readCompactSize(serializedHeader, position); // Assuming compact size is 1 byte
+  position += signatureSize.bytesRead;
+  output.signature_value = serializedHeader
+    .slice(position, position + signatureSize.value)
     .toString("hex");
-  output.signature_value = signatureValue;
 
   return output;
+}
+
+function SerializationTest(block_data_hex_string) {
+  // Show that the serializeHeader function effectively inverts the parseBlockData function:
+  const parsed_block_data = parseBlockData(block_data_hex_string);
+  const {
+    nTime,
+    nonce,
+    version,
+    prevHashReversed,
+    merkleRootReversed,
+    hashFinalSaplingRootReversed,
+    difficultyBits,
+    pastelidPubkey,
+    signature,
+    solution
+  } = prepareForSerialization(parsed_block_data);
+
+  const serialized_header = serializeHeader(
+    nTime,
+    nonce,
+    version,
+    prevHashReversed,
+    merkleRootReversed,
+    hashFinalSaplingRootReversed,
+    difficultyBits,
+    pastelidPubkey,
+    signature,
+    solution
+  );
+  const reparsed_data = prepareForParsing(serialized_header);
+
+  console.log("Original data:");
+  console.log(parsed_block_data);
+  console.log("Serialized header:");
+  console.log(serialized_header.toString("hex"));
+  console.log("Reparsed data:");
+  console.log(reparsed_data);
 }
 
 function runTests() {
@@ -401,42 +466,7 @@ function runTests() {
     }
   });
 
-  // Show that the serializeHeader function effectively inverts the parseBlockData function:
-
-  const parsed_block_data = parseBlockData(completeTestBlockDataAsHexString);
-  const {
-    nTime,
-    nonce,
-    version,
-    prevHashReversed,
-    merkleRootReversed,
-    hashReserved,
-    difficultyBits,
-    pastelidPubkey,
-    signature,
-  } = prepareForSerialization(parsed_block_data);
-
-  const serialized_header = serializeHeader(
-    nTime,
-    nonce,
-    version,
-    prevHashReversed,
-    merkleRootReversed,
-    hashReserved,
-    difficultyBits,
-    pastelidPubkey,
-    signature
-  );
-  const reparsed_data = prepareForParsing(serialized_header);
-
-  console.log("Original data:");
-  console.log(parsed_block_data);
-  console.log("Prepared data:");
-  console.log(prepared_data);
-  console.log("Serialized header:");
-  console.log(serialized_header.toString("hex"));
-  console.log("Reparsed data:");
-  console.log(reparsed_data);
+  SerializationTest(completeTestBlockDataAsHexString);
 }
 
 // Run the tests
