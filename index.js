@@ -470,7 +470,7 @@ function runTests() {
 }
 
 // Run the tests
-runTests();
+//runTests();
 
 module.exports = {
   is_validSolution,
