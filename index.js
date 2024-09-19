@@ -108,6 +108,12 @@ function parseBlockData(rawBlockHexString) {
   const v4HexDataWithoutNonceAndSolutionSize = 2 * (4 + 32 + 32 + 32 + 4 + 4);
   const uint256Size = 2 * 32;
 
+  // Extracting block version (first 4 bytes) - big-endian
+  let blockVersionStr = rawBlockHexString.substring(0, 8);
+  const verBuffer = Buffer.from(blockVersionStr, "hex");
+  let blockVersion = verBuffer.readUInt32LE(0);
+  console.log(`Block Version: ${blockVersion}`);
+
   let pos = 0;
   const v4HexDataWithoutNonceAndSolution = rawBlockHexString.substring(
     pos,
@@ -117,6 +123,40 @@ function parseBlockData(rawBlockHexString) {
     `V4 Data Without Nonce and Solution: ${v4HexDataWithoutNonceAndSolution}`
   );
   pos += v4HexDataWithoutNonceAndSolutionSize;
+
+  let pos_v5 = pos;
+  let v5HexData = "";
+  if (blockVersion >= 5) {
+    // extracting v5 data
+
+    // Extracting PastelID
+    const pastelIDSize = readCompactSizeFromHex(rawBlockHexString, pos);
+    console.log(`Pastel ID Size Hex Length: ${pastelIDSize.hexLength}`);
+    console.log(`Pastel ID Size: ${pastelIDSize.value}`);
+    pos += pastelIDSize.hexLength; // Move past Pastel ID compact size in hex string
+  
+    const pastelid_in_hex = rawBlockHexString.substring(
+      pos,
+      pos + pastelIDSize.value * 2);
+    console.log(`Pastel ID (hex): ${pastelid_in_hex}`);
+    const pastelIDString = Buffer.from(pastelid_in_hex, "hex").toString("utf8");
+    console.log(`Pastel ID: ${pastelIDString}`);
+    pos += pastelIDSize.value * 2;
+
+    // Extracting Signature
+    const signatureSize = readCompactSizeFromHex(rawBlockHexString, pos);
+    console.log(`Signature Size Hex Length: ${signatureSize.hexLength}`);
+    console.log(`Signature Size: ${signatureSize.value}`);
+    pos += signatureSize.hexLength; // Move past Signature compact size in hex string
+
+    const signatureValue = rawBlockHexString.substring(
+      pos,
+      pos + signatureSize.value * 2);
+    console.log(`Signature (hex): ${signatureValue}`);
+    pos += signatureSize.value * 2;
+
+    v5HexData = rawBlockHexString.substring(pos_v5, pos);
+  }
 
   const nonceValue = rawBlockHexString.substring(pos, pos + uint256Size);
   console.log(`Nonce Value (hex): ${nonceValue}`);
@@ -134,58 +174,19 @@ function parseBlockData(rawBlockHexString) {
   console.log(`Solution (hex): ${solutionValue}`);
   pos += solutionSize.value * 2;
 
-  const v5_data_combined_with_tx_data = rawBlockHexString.substring(pos);
-
-  // Extracting PastelID
-  let pos_v5 = 0;
-  const pastelIDSize = readCompactSizeFromHex(v5_data_combined_with_tx_data, pos_v5);
-  console.log(`Pastel ID Size Hex Length: ${pastelIDSize.hexLength}`);
-  console.log(`Pastel ID Size: ${pastelIDSize.value}`);
-  pos_v5 += pastelIDSize.hexLength; // Move past Pastel ID compact size in hex string
-
-  const pastelid_in_hex = v5_data_combined_with_tx_data.substring(
-    pos_v5,
-    pos_v5 + pastelIDSize.value * 2);
-  console.log(`Pastel ID (hex): ${pastelid_in_hex}`);
-  const pastelIDString = Buffer.from(pastelid_in_hex, "hex").toString("utf8");
-  console.log(`Pastel ID: ${pastelIDString}`);
-  pos_v5 += pastelIDSize.value * 2;
-
-  // Extracting Signature
-  const signatureSize = readCompactSizeFromHex(v5_data_combined_with_tx_data, pos_v5);
-  console.log(`Signature Size Hex Length: ${signatureSize.hexLength}`);
-  console.log(`Signature Size: ${signatureSize.value}`);
-  pos_v5 += signatureSize.hexLength; // Move past Signature compact size in hex string
-
-  const signatureValue = v5_data_combined_with_tx_data.substring(
-    pos_v5,
-    pos_v5 + signatureSize.value * 2
-  );
-  console.log(`Signature (hex): ${signatureValue}`);
-  pos_v5 += signatureSize.value * 2;
-
-  const blockTxData = v5_data_combined_with_tx_data.substring(pos_v5);
+  const blockTxData = rawBlockHexString.substring(pos);
   console.log(`Block TX Data: ${blockTxData}`);
 
-  const v5_data_combined = v5_data_combined_with_tx_data.substring(
-    0,
-    v5_data_combined_with_tx_data.length - blockTxData.length
-  );
-  console.log(`V5 Data Combined (hex): ${v5_data_combined}`);
-
   return {
-    v4_data_without_nonce_and_solution: v4HexDataWithoutNonceAndSolution,
+    equihash_input_in_hex: `${v4HexDataWithoutNonceAndSolution}${v5HexData}`,
     nonce_value_in_hex: nonceValue,
     solution_value_in_hex: solutionValue,
-    pastelid_value_in_hex: pastelid_in_hex,
-    signature_value_in_hex: signatureValue,
-    v5_data_combined_in_hex: v5_data_combined,
   };
 }
 
 function getDataForEquihashValidation(rawBlockHexString) {
   const parsedData = parseBlockData(rawBlockHexString);
-  const equihashInputHex = `${parsedData.v4_data_without_nonce_and_solution}${parsedData.v5_data_combined_in_hex}${parsedData.nonce_value_in_hex}`;
+  const equihashInputHex = `${parsedData.equihash_input_in_hex}${parsedData.nonce_value_in_hex}`;
   const solutionHex = parsedData.solution_value_in_hex;
 
   console.log("Equihash Input (hex):", equihashInputHex);
@@ -415,7 +416,7 @@ function runTests() {
   const k = 9;
 
   const completeTestBlockDataAsHexString =
-    "0500000020e87b9ad6547ee05575a1b511f5f81bd618c810e1d6013bd6e18a215092830208ec3d49c7882563766d4bd39d4f623ac80c8a00dbaf1ba20732f57fbd98dcd2d60cbc2d19f4e180dfd8d2170cca76badfcfcdde2f6b6cd55faf2f33d60c2b520b18cd65ef6607200600f2e5a3dc7d15ebd662139ebbae38ab99cfd65eeef76428f237f08e000000fd40050100f29d530ebedfb601d10f023e1ee963b170de842ed5a7440510833b1645147b5fbd5481e149d19f4d137f1d6d87a81da1bc9cb5ddd04edcfe237b13b28a183dc60f4d46ca2d554c1a87dbe8d9ef08299fdf4604c6c29be84332e996f675b722cc322d99761203400c5beae193580efafcc611683058c2cdf61edfa00b0dc65b87162fbc738272953137cb5ebd9d70911d9c1b86326eb149922bf31a3afeae77dbf7053cf897d0030ae3357b5195e92baad2416dc78156ba4156f2f40552b3a47f0c29c0fe4e24582a594b11421b514b4407f101fa6bc3e2fb7ea60170b7b70898d7d6cabbc51075c58399f601a9bf76027f9d73da96945317f66004faab7bcb0a926b414df5e915ffa06e6ae6d734bf08b6a0a43ad0d0e54185138a3049148a340f7d08570b8a5eaf9dde1a352c0830c495cd4c11f5e51bef1435d9eb1a125c8d9551f653d95ce1cd24fe03b3f8260307a035cf510af183e85112aab7b194760f0b61fb0ca3eb786d475df5c319f3e10162ab1abf389de3de084ea612a8e6a823fa6f339befd338db1299ddcd3835eca42b9c19624fd636e551aeca25d627e274cf711bec9c4cd0d643d39147d352147d40e252a4b2f3fc36669d486a22feb3de9a93a9052587d9f961de7da51e15cf8361d526d9a47a429449a60b6e20413d079336a1cd95399a9fabd49d2763c6e89f5657d537eae4048db215afcbc47db82d57bab8fa7646a88ff8aa7618bfb239d3cbcba17ef044b7967930337fdf7e3bee1bd11697149a64a96c0aa201a2aadd5faa21ff36732bb44a92d2568b4b8fddd5471d3d30adde6c162a1409176b7381936fbcf0b0d326e3fd9f82e3f29a45d409d7a55ec3635e63af9847b7a57b95b21ea6d397e10f9ec730d052774d9053d6db487408ee8b539663aa2d698b7e8ce6d1ab564f93e17ea522f584e13e57d401ff8793a824294b6fb991f0ba43a0dccdabd716130708639b4d89c91bb07b81dbc6e4e4fd61df6f7336043d24a37e19108bff48314cc0bbc2077150be6289442e74e16562f167af6314be01aeb6de4776544c8d0213e7c9754ef46d2c4ee637a9b563a1ac457be68c06752242f2e25627630fb396255a80d92e0f2bd747079a8eacb3d0087fc25bb17e0346e118c83b08ccbc18c7832f885bdb2568d3abe19a7809fb848f7fb96305cb1d26d827e0d3efe0e22067164a9927a9375fb3126ef525a1f8d69bf2eb73ba1ca87a7a6fa79676d30c54b19433578f28da60b1dada734e2b3dcb5a58d822cfb1ab6dd28fadc26c82f442da23e9aa5390222f0c3167237b991187518ac32839a7cb0f1647fd7e74342ac73224e949b3cddd0624fdd522338fdf3e051b24d157e7f8dc315bcefe559abdc3aabdeaa8b9cd9c309675c34ca07d153b6af46605ad3b5d5b5db2fbdc05a5468b80963e2ebb0e634201b240b9d567d33aed09cf10d137ce599b7010923412ae9839308db769ab14c0f573b8db11ddfe485425e1f861615dced9eac7503966e1e2a044a770e5974885bdc802efcd7ed31b10811502cbca338d4a3a435e049e03ca45c6b8c5df1fd6f5a36bb3d0fde5b712ded7c78ed5da09d85e3515f447ccce0903f448efb2a6034900d4ff409355da3ff177ac0bde3b0b28e6f5cd4eb1bc070b673df2d909ed074e84c9904d2eef42413ca88045fa4ad81ddb0a847a9905c7bbcc4dd2b2d23332b525ea337559c91e1deb485c70c327ea54435f92c8cbb4f93c32e9b233d7faf5dda56be98b01a83b2a774a96a0465c3c7431acfa72caccaf85fb9aa58e34ce1b670356fb3f6d51ab6477acd9a6c375f8b6f105fe0d46760a1cf17436217ea11c9c7cb31607262a0accb77990bd77eb3346e4ef7898dd75ff2f3b18343669730699b33f5aa6566a585877503931486a795a3271357a466648415143656f444b3554766e774559754a634a597858737139786559676d554c6b3353523845723269796d6f546151344e394d3272636f7746424a47586f5a36796531674e720b2377423a43ce37525c48f3f9fea451d01463c8426b4c562edf2bc9f448f536645a836efadae2a04d7b1f120a64cbfede3ac04fcc51cfa580314fbe25057b4e75c05983c2df0ab2b1ecfda528be6f993e2c3b6cdeef816e204677ecf8573806cbff5c97813ebd681f8d3d5b03da2d203a00010400008085202f89010000000000000000000000000000000000000000000000000000000000000000ffffffff06032e35060101ffffffff020065cd1d000000001976a914a525ad9a09c7fa91a7b9a31fcdf5fca1b75906ed88ac40597307000000001976a914d244e10fe4cde16c8e0ca28b9fc626976f0a1dec88ac00000000423506000000000000000000000000";
+    "05000000635fcfbf24561ecf5412b2414a7772cbb6ec815ec4506bfc88e3083f2d12a90092cca437c18153576b8013bda235c8ee97f430989a4205745d188bf4f54d6eccfbc2f4300c01f0b7820d00e3347c8da4ee614674376cbc45359daa54f9b5493e3786db660dcd0020566a5859335959665061556e7a716e6466634647764848783839384c4e6675383544566b385a38556a3353776552503251314251357637645a41636777706e61364e73714b33595a77696d353876334e7557355075337572475cc744e6f8ba46e61e7949af304c9ebea27da9dee1a0c9020efdfb004ea08230016fdcd1d680fb65cbb7281cb8e8326f23fec677b6163180c90e0997944e87155515a15f6c1679883a932c58f8a38470f4327f4b607e16844437b7191a20edc4e3254fba3d9326c795c8bf1f950e403f0057fffff5d8d8aa41000000000000000000000000000000000000000000000000fd4005001c192b9e581b7cde0fb520be466f4a1be854eea32e923f28941647a78e40854417492705bd827ffbab122fcffe4511b865334cfa8840e75c7f720c5cb21c1b8d8568d26a355bcb07920c2d56a5c510285e7a1d06bbe667d1d588891eb0d82a3e70e7e6364492127d0e96f996c5f3e17de13686339077e6dec92f5f105a2fc5b4572e4f96d1721df3ef86f855e2aa07b717d132c4072a789e31f7767976c836d9c741f163fdd73e0160e73ec967b3a15da8b72dd9d080830e3f7e515505c88b092d498c8fb95883cfd0c91f910df14ec08a12f2da89fccd54c06d53f1b4f8198b3cecdf554758503adae9115b8101f52087b400e3ad73ac0c7e05a208887e29db3150efacf9d150eb214a54b476ab375e0bee0ace630326b25c82e8248c6e5bde679cd53fe52502fd462e23ac272777096d0d54bacf399a3dc3822a0476b5a4dd0fefd82005cf6835c2b61a80b9069607681744ffd4577594d3b5b989ec167978817816280d2a68dffeefd6c58f9aa78674c75c86d8b9dd762b2313568c6a687ab1919017ac96dde4aa2aba3486ca30e24d7081ee85817bd1632d6420218ceaae10ec9209db08ac18848237cdb15693f0f22e4a798d9f8a95114f1aa81ee161b3354262cd9caf2134f5b8185b372848f576d998bf992b8a2443276b7e7ea76b3cd7fc4e0d7efb90a96b4b85c9d7613570fdf332a779d1e107b8ce8a8355f3195777738a31d6d2b361751f52803c0bc2233a522e4f02d2861328dfbc462de0749450196e1d1c25548a9b655254cf2170e4454fd87c142c5287ac95ebac1dbdf09946d708e2adcaf18f7e2b9f0a229e497ca2479d1294d234ac4057857082b78607181c47580e4cef9d7e0e13c68dc678c7c8717f4e4026fadeb4495749f52c92a2a16d2f053644b01587b873cebc82bd1f151d0d13f822af619d8e2cce3ee01a01a3eb9ac363ad3fee97f539da62ac819b360e1fba024a1d6431c169883a28545b3df72a31d8831a64ae14dc18c2658653650473773a5f6796b2323eb89bf61513dfeafc0f27e529eeb28ff6332a86c76adc69930cb429516052cfb596a1141cf2b3c5f154a5fc057b14e39d4e0ee1248d47d3931650e2ed5de74b97b9513323f6d77e2b6b37fed2e6bf35e7cb4f7fc75de84035c1af86215a30bd3d8c08929b62fd9e77591b1b4c099e6200d98ad43fbaf9e200e5dbeb8ee14118db24176cfe63de8726f563e4c680c3d1b8f2f0c098b0a63449bcc5c05d0bc50ac0671bc6fb3c5df1e03141fe548c7d1e4d19deeffcd4982ab8ebc922826b7736e50e87bfb600d778f5a371e146b6746829eb6b94c3833ab01d35a39006affbf985a48fd0e4f1f071de42f1102cc70686d194095fab0ac0637b1c7758a7be6930260b91f63a5b7dd9e2dc32f3b14026268bf4ba8dd102e968981f15b947d9c6d32d2648f1651aa6dd5d2d13567c4e15cc06a71418b19166e439b929179d8de50794eae6046095cfe5a4e34490c137c55265ff70b41412d8d1a69232ab4dbfb19c606709a6dd5cdb872f0cec4e59a46e0b5bf81e684564d8536217cfdcbd991a71b9a719a90319b8e5d5d49f7c761f90c55e1e331f2d548c07cc3a2377bbe6f363513206c7e85c2cbb724f27890adf5dd5008e0d897cfe7dd79484fda6800894ed85248585df0d1d857a5fcbbb01d1dc7e74ae37f6ea1f1ae4ee77e74ea3b42bccf3058cc3dccb7e12d866472e08ae153000f73441c6787e14a13bb7211b36759f931a689fdc20a5b6604cd3e240c2b9053d21697d76d20d4f9f395955ab2e75749e07ee1e9c0f37ed848114a0037b704544a58bbf14b94e235be2382ad2a5a638d76dd960950377b87c336d5ef0398d3750e03c9c90a6409f7b60d5b2c6f7933d9dd0947d72";
   const { equihash_input_hex_string, solution_hex_string } =
     getDataForEquihashValidation(completeTestBlockDataAsHexString);
 
